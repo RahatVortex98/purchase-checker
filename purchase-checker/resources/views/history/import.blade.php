@@ -15,7 +15,7 @@
         <div id="worksheet-status" class="form-text mb-3" role="status" aria-live="polite">Choose a file to detect its worksheets.</div>
         <div class="mb-3">
             <div class="form-check"><input class="form-check-input" type="radio" name="mode" value="append" id="m1" checked>
-                <label class="form-check-label" for="m1">Add to existing history (duplicates skipped automatically)</label></div>
+                <label class="form-check-label" for="m1">Add purchases and refresh matching dates from this file and worksheet</label></div>
             <div class="form-check"><input class="form-check-input" type="radio" name="mode" value="replace" id="m2">
                 <label class="form-check-label" for="m2">Replace all history with this file</label></div>
         </div>

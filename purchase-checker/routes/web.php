@@ -53,6 +53,9 @@ Route::get('/history/import', [HistoryController::class, 'importForm'])->name('h
 Route::post('/history/import/sheets', [HistoryController::class, 'sheets'])->name('history.import.sheets');
 Route::post('/history/import', [HistoryController::class, 'import'])->name('history.import.run');
 Route::delete('/history/import/{batch}', [HistoryController::class, 'destroyImport'])->name('history.import.destroy');
+Route::get('/history/month/{year}/{month}', [HistoryController::class, 'month'])
+    ->where(['year' => '[0-9]{4}', 'month' => '0[1-9]|1[0-2]'])
+    ->name('history.month');
 Route::resource('history', HistoryController::class)->except(['show']);
 
 Route::get('/diag', fn () => [

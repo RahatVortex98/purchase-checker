@@ -27,7 +27,13 @@
             @foreach($monthly as $m)
                 <tr>
                     <td>{{ $m['year'] ?? '—' }}</td>
-                    <td>{{ $m['month'] }}</td>
+                    <td>
+                        @if($m['year'])
+                            <a href="{{ route('history.month', ['year' => $m['year'], 'month' => substr($m['key'], 5, 2)]) }}">{{ $m['month'] }}</a>
+                        @else
+                            {{ $m['month'] }}
+                        @endif
+                    </td>
                     <td class="text-end">{{ $m['lines'] }}</td>
                     <td class="text-end fw-semibold">{{ number_format($m['total'], 2) }}</td>
                     <td><div class="progress" style="height:8px"><div class="progress-bar" style="width:{{ $m['total'] / $max * 100 }}%"></div></div></td>

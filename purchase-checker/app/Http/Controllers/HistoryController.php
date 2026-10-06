@@ -7,6 +7,7 @@ use App\Models\PurchaseHistory;
 use App\Services\ExcelReader;
 use App\Services\HistoryImporter;
 use Carbon\Carbon;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,29 @@ use Illuminate\Support\Facades\DB;
 
 class HistoryController extends Controller
 {
+    public function month(string $year, string $month): View
+    {
+        $yearNumber = (int) $year;
+        $monthNumber = (int) $month;
+        abort_unless(checkdate($monthNumber, 1, $yearNumber), 404);
+
+        $monthDate = Carbon::create($yearNumber, $monthNumber, 1)->startOfMonth();
+        $rows = PurchaseHistory::query()
+            ->whereBetween('purchase_date', [
+                $monthDate->toDateString(),
+                $monthDate->copy()->endOfMonth()->toDateString(),
+            ])
+            ->orderBy('purchase_date')
+            ->orderBy('id')
+            ->get();
+
+        return view('history.month', [
+            'month' => $monthDate,
+            'rows' => $rows,
+            'total' => $rows->sum('amount'),
+        ]);
+    }
+
     public function index(Request $request)
     {
         $rows = PurchaseHistory::query()
@@ -21,7 +45,7 @@ class HistoryController extends Controller
                 ->where('item_name', 'like', '%'.$request->q.'%')
                 ->orWhere('supplier', 'like', '%'.$request->q.'%')))
             ->when($request->filled('department'), fn ($x) => $x->where('department', $request->department))
-            ->orderByRaw('purchase_date is null')->orderByDesc('purchase_date')->orderByDesc('id')
+            ->orderByRaw('purchase_date is null')->orderBy('purchase_date')->orderBy('id')
             ->paginate(50)->withQueryString();
 
         return view('history.index', [
@@ -115,7 +139,7 @@ class HistoryController extends Controller
         $r = $importer->import($rows, $request->file('file')->getClientOriginalName(), $request->input('sheet'), $request->mode);
 
         return redirect()->route('history.index')
-            ->with('ok', "Import done: {$r['added']} added, {$r['skipped']} duplicates skipped.");
+            ->with('ok', "Import done: {$r['added']} added, {$r['updated']} previous rows refreshed, {$r['skipped']} duplicates skipped.");
     }
 
     private function data(Request $request): array

@@ -22,7 +22,13 @@
 <table class="table table-sm table-bordered bg-white">
 <thead class="table-light"><tr><th>Date</th><th>Item</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th><th>Supplier</th><th>Dept</th><th></th></tr></thead>
 <tbody>
+@php $currentMonth = null; @endphp
 @foreach($rows as $r)
+@php $month = $r->purchase_date?->format('Y-m') ?? 'unknown'; @endphp
+@if($month !== $currentMonth)
+<tr class="table-secondary"><th colspan="9">{{ $r->purchase_date?->format('F Y') ?? 'Date unknown' }}</th></tr>
+@php $currentMonth = $month; @endphp
+@endif
 <tr>
     <td>{{ $r->purchase_date?->format('d.m.Y') ?? $r->date_text }}</td>
     <td>{{ $r->item_name }}</td>
