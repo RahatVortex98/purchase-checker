@@ -9,23 +9,36 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as XlDate;
 class ExcelReader
 {
     private const ALIASES = [
-        'date'       => ['date', 'purchase date'],
-        'item'       => ['item / description', 'item', 'product name', 'product', 'description', 'item name'],
-        'qty'        => ['qty', 'quantity'],
-        'unit'       => ['unit'],
-        'rate'       => ['rate (bdt)', 'rate', 'unit price', 'unit price (bdt)', 'unit price / rate (bdt)'],
-        'amount'     => ['amount (bdt)', 'amount', 'total amount (bdt)', 'total amount'],
-        'supplier'   => ['supplier', 'supplier / party name', 'party name', 'supplier name'],
+        'date' => ['date', 'purchase date'],
+        'item' => ['item / description', 'item', 'product name', 'product', 'description', 'item name'],
+        'qty' => ['qty', 'quantity'],
+        'unit' => ['unit'],
+        'rate' => ['rate (bdt)', 'rate', 'unit price', 'unit price (bdt)', 'unit price / rate (bdt)'],
+        'amount' => ['amount (bdt)', 'amount', 'total amount (bdt)', 'total amount'],
+        'supplier' => ['supplier', 'supplier / party name', 'party name', 'supplier name'],
         'department' => ['department', 'department / source', 'dept'],
     ];
+
+    private const MONTH_NUMBERS = [
+        'january' => 1, 'february' => 2, 'march' => 3, 'april' => 4,
+        'may' => 5, 'june' => 6, 'july' => 7, 'august' => 8,
+        'september' => 9, 'october' => 10, 'november' => 11, 'december' => 12,
+    ];
+
+    public function sheetNames(string $path): array
+    {
+        $reader = IOFactory::createReaderForFile($path);
+
+        return $reader->listWorksheetNames($path);
+    }
 
     /** $forwardFill = true for new lists where merged cells leave date/supplier/dept blank */
     public function read(string $path, ?string $sheet = null, bool $forwardFill = false): array
     {
         $book = IOFactory::load($path);
         $ws = $sheet ? $book->getSheetByName($sheet) : $book->getSheet(0);
-        if (!$ws) {
-            throw new \RuntimeException("Sheet \"$sheet\" not found. Available sheets: " . implode(', ', $book->getSheetNames()));
+        if (! $ws) {
+            throw new \RuntimeException("Sheet \"$sheet\" not found. Available sheets: ".implode(', ', $book->getSheetNames()));
         }
         $grid = $ws->toArray(null, true, false, false);
 
@@ -36,7 +49,7 @@ class ExcelReader
 
         $rows = [];
         $last = ['date' => null, 'supplier' => null, 'dept' => null];
-
+        $lastYear = null;
         for ($i = $headerRow + 1; $i < count($grid); $i++) {
             $g = $grid[$i];
             $get = fn (string $f) => isset($map[$f]) ? ($g[$map[$f]] ?? null) : null;
@@ -48,7 +61,7 @@ class ExcelReader
             $qty = $this->num($get('qty'));
             $rate = $this->num($get('rate'));
             $amount = $this->num($get('amount'));
-            if ($qty === null && $rate === null && preg_match('/\btotal\b/i', $item)) {
+            if (preg_match('/\btotal\b/i', $item)) {
                 continue; // "OCTOBER TOTAL" etc.
             }
 
@@ -74,21 +87,24 @@ class ExcelReader
                 $amount = round($qty * $rate, 2);
             }
 
-            [$date, $dateText] = $this->parseDate($dateRaw);
+            [$date, $dateText] = $this->parseDate($dateRaw, $lastYear);
+            if ($date) {
+                $lastYear = $date->year;
+            }
 
             $rows[] = [
-                'row_no'          => $i + 1,
-                'purchase_date'   => $date?->toDateString(),
-                'date_text'       => $dateText,
-                'item_name'       => $item,
+                'row_no' => $i + 1,
+                'purchase_date' => $date?->toDateString(),
+                'date_text' => $dateText,
+                'item_name' => $item,
                 'normalized_name' => ItemNormalizer::normalize($item),
-                'qty'             => $qty,
-                'unit'            => trim((string) $get('unit')) ?: null,
-                'rate'            => $rate,
-                'amount'          => $amount,
-                'supplier'        => $supplier ?: null,
-                'department'      => $this->cleanDepartment($dept),
-                'source'          => $dept ?: null,
+                'qty' => $qty,
+                'unit' => trim((string) $get('unit')) ?: null,
+                'rate' => $rate,
+                'amount' => $amount,
+                'supplier' => $supplier ?: null,
+                'department' => $this->cleanDepartment($dept),
+                'source' => $dept ?: null,
             ];
         }
 
@@ -105,7 +121,7 @@ class ExcelReader
                     continue;
                 }
                 foreach (self::ALIASES as $field => $names) {
-                    if (!isset($map[$field]) && in_array($h, $names, true)) {
+                    if (! isset($map[$field]) && in_array($h, $names, true)) {
                         $map[$field] = $c;
                         break;
                     }
@@ -115,6 +131,7 @@ class ExcelReader
                 return [$i, $map];
             }
         }
+
         return [null, []];
     }
 
@@ -127,26 +144,46 @@ class ExcelReader
             return (float) $v;
         }
         $v = str_replace(',', '', (string) $v);
+
         return is_numeric($v) ? (float) $v : null;
     }
 
     /** Handles "22.02.2026", "08-09-2026", ranges, real Excel dates. Typos (year 2027+, 20206) -> date null, text kept. */
-    private function parseDate($v): array
+    private function parseDate($v, ?int $fallbackYear = null): array
     {
         if ($v === null || $v === '') {
             return [null, null];
         }
         if (is_numeric($v)) {
             $dt = Carbon::instance(XlDate::excelToDateTimeObject($v))->startOfDay();
+
             return [$dt, $dt->format('d.m.Y')];
         }
         $text = trim((string) $v);
-        if (preg_match('/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})(?!\d)/', $text, $m)) {
+        if (preg_match('/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4,5})(?!\d)/', $text, $m)) {
             [$d, $mo, $y] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+            // typo years (2027, 2030, 20206): use the year of the previous valid row
+            if (($y > (int) now()->year || $y < 2000) && $fallbackYear) {
+                $y = $fallbackYear;
+            }
             if (checkdate($mo, $d, $y) && $y <= (int) now()->year) {
                 return [Carbon::create($y, $mo, $d)->startOfDay(), $text];
             }
         }
+
+        if (preg_match('/^([a-z]+)(?:\s+(\d{4}))?$/i', $text, $m)) {
+            $month = self::MONTH_NUMBERS[mb_strtolower($m[1])] ?? null;
+            if ($month !== null) {
+                $year = isset($m[2]) ? (int) $m[2] : ($fallbackYear ?? (int) now()->year);
+                if (($year > (int) now()->year || $year < 2000) && $fallbackYear) {
+                    $year = $fallbackYear;
+                }
+                if ($year >= 2000 && $year <= (int) now()->year) {
+                    return [Carbon::create($year, $month, 1)->startOfDay(), $text];
+                }
+            }
+        }
+
         return [null, $text];
     }
 
@@ -161,6 +198,7 @@ class ExcelReader
         if (preg_match("/^($months)(\s+\d{4})?\s*(?:\((.+)\))?\s*$/iu", $v, $m)) {
             return isset($m[3]) && trim($m[3]) !== '' ? trim($m[3]) : null;
         }
+
         return $v;
     }
 }

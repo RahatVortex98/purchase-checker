@@ -7,7 +7,10 @@ use App\Models\PurchaseHistory;
 use App\Services\ExcelReader;
 use App\Services\HistoryImporter;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class HistoryController extends Controller
 {
@@ -15,8 +18,8 @@ class HistoryController extends Controller
     {
         $rows = PurchaseHistory::query()
             ->when($request->filled('q'), fn ($x) => $x->where(fn ($w) => $w
-                ->where('item_name', 'like', '%' . $request->q . '%')
-                ->orWhere('supplier', 'like', '%' . $request->q . '%')))
+                ->where('item_name', 'like', '%'.$request->q.'%')
+                ->orWhere('supplier', 'like', '%'.$request->q.'%')))
             ->when($request->filled('department'), fn ($x) => $x->where('department', $request->department))
             ->orderByRaw('purchase_date is null')->orderByDesc('purchase_date')->orderByDesc('id')
             ->paginate(50)->withQueryString();
@@ -30,12 +33,13 @@ class HistoryController extends Controller
 
     public function create()
     {
-        return view('history.form', ['row' => new PurchaseHistory()]);
+        return view('history.form', ['row' => new PurchaseHistory]);
     }
 
     public function store(Request $request)
     {
         PurchaseHistory::create($this->data($request));
+
         return redirect()->route('history.index')->with('ok', 'Row added.');
     }
 
@@ -47,12 +51,14 @@ class HistoryController extends Controller
     public function update(Request $request, PurchaseHistory $history)
     {
         $history->update($this->data($request));
+
         return redirect()->route('history.index')->with('ok', 'Row updated.');
     }
 
     public function destroy(PurchaseHistory $history)
     {
         $history->delete();
+
         return back()->with('ok', 'Row deleted.');
     }
 
@@ -61,20 +67,48 @@ class HistoryController extends Controller
         return view('history.import', ['batches' => ImportBatch::latest()->limit(10)->get()]);
     }
 
-    public function import(Request $request, ExcelReader $reader, HistoryImporter $importer)
+    public function sheets(Request $request, ExcelReader $reader): JsonResponse
     {
         $request->validate([
-            'file'  => 'required|file|mimes:xlsx,xls,csv',
-            'sheet' => 'nullable|string|max:100',
-            'mode'  => 'required|in:append,replace',
+            'file' => 'required|file|mimes:xlsx,xls,csv',
         ]);
 
         try {
-            $rows = $reader->read($request->file('file')->getRealPath(), $request->input('sheet'), false);
+            $sheets = $reader->sheetNames($request->file('file')->getRealPath());
+        } catch (\Throwable) {
+            return response()->json(['message' => 'Could not read worksheets from this file.'], 422);
+        }
+
+        return response()->json(['sheets' => $sheets]);
+    }
+
+    public function destroyImport(ImportBatch $batch): RedirectResponse
+    {
+        $deletedRows = DB::transaction(function () use ($batch) {
+            $deletedRows = PurchaseHistory::where('import_batch_id', $batch->id)->delete();
+            $batch->delete();
+
+            return $deletedRows;
+        });
+
+        return redirect()->route('history.import')
+            ->with('ok', "Deleted import and {$deletedRows} purchase-history rows.");
+    }
+
+    public function import(Request $request, ExcelReader $reader, HistoryImporter $importer)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+            'sheet' => 'nullable|string|max:100',
+            'mode' => 'required|in:append,replace',
+        ]);
+
+        try {
+            $rows = $reader->read($request->file('file')->getRealPath(), $request->input('sheet'), true);
         } catch (\Throwable $e) {
             return back()->withErrors(['file' => $e->getMessage()])->withInput();
         }
-        if (!$rows) {
+        if (! $rows) {
             return back()->withErrors(['file' => 'No item rows found in that sheet.'])->withInput();
         }
 
@@ -88,18 +122,19 @@ class HistoryController extends Controller
     {
         $d = $request->validate([
             'purchase_date' => 'nullable|date',
-            'item_name'     => 'required|string|max:255',
-            'qty'           => 'nullable|numeric',
-            'unit'          => 'nullable|string|max:30',
-            'rate'          => 'nullable|numeric',
-            'amount'        => 'nullable|numeric',
-            'supplier'      => 'nullable|string|max:255',
-            'department'    => 'nullable|string|max:255',
+            'item_name' => 'required|string|max:255',
+            'qty' => 'nullable|numeric',
+            'unit' => 'nullable|string|max:30',
+            'rate' => 'nullable|numeric',
+            'amount' => 'nullable|numeric',
+            'supplier' => 'nullable|string|max:255',
+            'department' => 'nullable|string|max:255',
         ]);
-        if (empty($d['amount']) && !empty($d['qty']) && !empty($d['rate'])) {
+        if (empty($d['amount']) && ! empty($d['qty']) && ! empty($d['rate'])) {
             $d['amount'] = $d['qty'] * $d['rate'];
         }
-        $d['date_text'] = !empty($d['purchase_date']) ? Carbon::parse($d['purchase_date'])->format('d.m.Y') : null;
+        $d['date_text'] = ! empty($d['purchase_date']) ? Carbon::parse($d['purchase_date'])->format('d.m.Y') : null;
+
         return $d;
     }
 }

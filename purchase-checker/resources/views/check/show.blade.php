@@ -13,11 +13,11 @@
     </div>
 </div>
 
-<div class="btn-group btn-group-sm mb-3" id="filters">
-    <button class="btn btn-dark active" data-f="all">All ({{ count($results) }})</button>
-    <button class="btn btn-outline-success" data-f="found">Bought before ({{ $counts['found'] ?? 0 }})</button>
-    <button class="btn btn-outline-warning" data-f="similar">Similar ({{ $counts['similar'] ?? 0 }})</button>
-    <button class="btn btn-outline-danger" data-f="new">New item ({{ $counts['new'] ?? 0 }})</button>
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div class="card stat"><div class="text-muted small">Total items</div><div class="n">{{ count($results) }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="card stat"><div class="text-success small">Bought before</div><div class="n text-success">{{ $counts['found'] ?? 0 }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="card stat"><div class="text-warning small">Similar</div><div class="n text-warning">{{ $counts['similar'] ?? 0 }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="card stat"><div class="text-danger small">New (needs inquiry)</div><div class="n text-danger">{{ $counts['new'] ?? 0 }}</div></div></div>
 </div>
 
 <table class="table table-sm table-bordered bg-white align-middle">
