@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
 class HistorySheetsTest extends TestCase
@@ -22,6 +24,28 @@ class HistorySheetsTest extends TestCase
             ->assertJsonStructure(['sheets']);
 
         $this->assertNotEmpty($response->json('sheets'));
+    }
+
+    public function test_it_detects_worksheets_in_an_uploaded_xlsx_file(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'purchase-checker-');
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getActiveSheet()->setTitle('Purchases');
+        $spreadsheet->getActiveSheet()->fromArray([
+            ['Date', 'Item', 'Qty'],
+            ['2026-10-01', 'Paper', 1],
+        ]);
+        (new Xlsx($spreadsheet))->save($path);
+
+        try {
+            $file = UploadedFile::fake()->createWithContent('purchases.xlsx', file_get_contents($path));
+        } finally {
+            unlink($path);
+        }
+
+        $this->post(route('history.import.sheets'), ['file' => $file])
+            ->assertOk()
+            ->assertJsonPath('sheets.0', 'Purchases');
     }
 
     public function test_import_form_contains_the_worksheet_picker(): void

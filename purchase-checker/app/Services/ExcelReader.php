@@ -148,7 +148,7 @@ class ExcelReader
         return is_numeric($v) ? (float) $v : null;
     }
 
-    /** Handles "22.02.2026", "08-09-2026", ranges, real Excel dates. Typos (year 2027+, 20206) -> date null, text kept. */
+    /** Handles "22.02.2026", "08-09-2026", month-only dates, and real Excel dates. */
     private function parseDate($v, ?int $fallbackYear = null): array
     {
         if ($v === null || $v === '') {
@@ -160,13 +160,9 @@ class ExcelReader
             return [$dt, $dt->format('d.m.Y')];
         }
         $text = trim((string) $v);
-        if (preg_match('/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4,5})(?!\d)/', $text, $m)) {
+        if (preg_match('/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})(?!\d)/', $text, $m)) {
             [$d, $mo, $y] = [(int) $m[1], (int) $m[2], (int) $m[3]];
-            // typo years (2027, 2030, 20206): use the year of the previous valid row
-            if (($y > (int) now()->year || $y < 2000) && $fallbackYear) {
-                $y = $fallbackYear;
-            }
-            if (checkdate($mo, $d, $y) && $y <= (int) now()->year) {
+            if ($y >= 2000 && checkdate($mo, $d, $y)) {
                 return [Carbon::create($y, $mo, $d)->startOfDay(), $text];
             }
         }
@@ -175,10 +171,7 @@ class ExcelReader
             $month = self::MONTH_NUMBERS[mb_strtolower($m[1])] ?? null;
             if ($month !== null) {
                 $year = isset($m[2]) ? (int) $m[2] : ($fallbackYear ?? (int) now()->year);
-                if (($year > (int) now()->year || $year < 2000) && $fallbackYear) {
-                    $year = $fallbackYear;
-                }
-                if ($year >= 2000 && $year <= (int) now()->year) {
+                if ($year >= 2000) {
                     return [Carbon::create($year, $month, 1)->startOfDay(), $text];
                 }
             }

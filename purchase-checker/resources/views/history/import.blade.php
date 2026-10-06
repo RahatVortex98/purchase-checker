@@ -75,7 +75,17 @@
                 headers: { Accept: 'application/json' },
                 body: payload,
             });
-            const result = await response.json();
+            const responseBody = await response.text();
+            let result;
+            try {
+                result = JSON.parse(responseBody);
+            } catch {
+                const serverMessage = responseBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                throw new Error(serverMessage
+                    ? `Upload failed (HTTP ${response.status}): ${serverMessage.slice(0, 240)}`
+                    : `Upload failed with HTTP ${response.status}. Check the Laravel/PHP error log for details.`);
+            }
+
             if (!response.ok) {
                 throw new Error(result.errors?.file?.[0] || result.message || 'Could not detect worksheets.');
             }

@@ -18,42 +18,43 @@ class HistoryImporter
                 ImportBatch::query()->delete();
             } elseif ($mode === 'append') {
                 $dates = collect($rows)->pluck('purchase_date')->filter()->unique()->all();
-                if ($dates !== []) {
-                    $batches = ImportBatch::query()
-                        ->where('file_name', $fileName)
-                        ->where('sheet_name', $sheet)
-                        ->get();
+                $containsUnknownDates = collect($rows)->contains(fn (array $row) => $row['purchase_date'] === null);
+                $batches = ImportBatch::query()
+                    ->where('file_name', $fileName)
+                    ->where('sheet_name', $sheet)
+                    ->get();
 
-                    if ($batches->isNotEmpty()) {
-                        $batchIds = $batches->modelKeys();
+                if ($batches->isNotEmpty()) {
+                    $batchIds = $batches->modelKeys();
+                    if ($dates !== [] || $containsUnknownDates) {
                         $updated = PurchaseHistory::query()
                             ->whereIn('import_batch_id', $batchIds)
-                            ->whereIn('purchase_date', $dates)
+                            ->where(function ($query) use ($dates, $containsUnknownDates) {
+                                if ($dates !== []) {
+                                    $query->whereIn('purchase_date', $dates);
+                                }
+                                if ($containsUnknownDates) {
+                                    $dates !== [] ? $query->orWhereNull('purchase_date') : $query->whereNull('purchase_date');
+                                }
+                            })
                             ->delete();
+                    }
 
-                        foreach ($batches as $existingBatch) {
-                            $existingBatch->update([
-                                'rows_count' => PurchaseHistory::query()
-                                    ->where('import_batch_id', $existingBatch->id)
-                                    ->count(),
-                            ]);
-                        }
+                    foreach ($batches as $existingBatch) {
+                        $existingBatch->update([
+                            'rows_count' => PurchaseHistory::query()
+                                ->where('import_batch_id', $existingBatch->id)
+                                ->count(),
+                        ]);
                     }
                 }
             }
 
             $batch = ImportBatch::create(['file_name' => $fileName, 'sheet_name' => $sheet, 'rows_count' => 0]);
 
-            $seen = [];
             $payload = [];
             $now = now();
-            foreach ($rows as $r) {
-                $key = md5(implode('|', [
-                    $r['date_text'], $r['normalized_name'], $r['qty'], $r['rate'], $r['amount'],
-                    mb_strtolower((string) $r['supplier']),
-                ]));
-                $seen[$key] = ($seen[$key] ?? 0) + 1;   // identical rows in same file are kept
-
+            foreach ($rows as $index => $r) {
                 $payload[] = [
                     'import_batch_id' => $batch->id,
                     'purchase_date' => $r['purchase_date'],
@@ -67,7 +68,7 @@ class HistoryImporter
                     'supplier' => $r['supplier'],
                     'department' => $r['department'],
                     'source' => $r['source'],
-                    'row_hash' => md5($key.'#'.$seen[$key]),
+                    'row_hash' => md5($batch->id.'#'.$index),
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];

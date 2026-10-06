@@ -66,4 +66,40 @@ class HistoryImportRefreshTest extends TestCase
         $this->get(route('history.index'))
             ->assertSeeInOrder(['January 2026', 'February 2026']);
     }
+
+    public function test_repeat_purchases_from_different_imports_are_kept_and_shown_in_checks(): void
+    {
+        $this->travelTo('2026-10-10 12:00:00');
+
+        foreach ([
+            ['august.csv', '01.08.2026'],
+            ['september.csv', '01.09.2026'],
+            ['september-copy.csv', '01.09.2026'],
+        ] as [$fileName, $date]) {
+            $this->post(route('history.import.run'), [
+                'file' => UploadedFile::fake()->createWithContent(
+                    $fileName,
+                    "Date,Item,Qty,Rate,Amount,Supplier\n{$date},Paper,2,10,20,Vendor\n",
+                ),
+                'mode' => 'append',
+            ])->assertRedirect(route('history.index'));
+        }
+
+        $this->assertDatabaseCount('purchase_histories', 3);
+
+        $response = $this->post(route('check.run'), [
+            'file' => UploadedFile::fake()->createWithContent(
+                'requisition.csv',
+                "Date,Item,Qty,Rate,Amount\n,Paper,1,12,12\n",
+            ),
+        ])->assertRedirect();
+
+        $token = basename(parse_url($response->headers->get('Location'), PHP_URL_PATH));
+
+        $this->get(route('check.show', $token))
+            ->assertOk()
+            ->assertSee('Bought before ×3')
+            ->assertSee('01.08.2026')
+            ->assertSee('01.09.2026');
+    }
 }

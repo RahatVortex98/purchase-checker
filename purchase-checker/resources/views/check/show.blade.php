@@ -4,13 +4,42 @@
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h5 class="mb-0">{{ $data['file'] }} @if($data['sheet'])<small class="text-muted">/ {{ $data['sheet'] }}</small>@endif</h5>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary btn-sm" href="{{ route('check.export', $token) }}">Download full result</a>
-        <a class="btn btn-outline-danger btn-sm" href="{{ route('check.export', [$token, 'only' => 'new']) }}">Download NEW items (for price inquiry)</a>
-        <form method="POST" action="{{ route('check.save', $token) }}" onsubmit="return confirm('Add all rows of this list to purchase history?')">
-            @csrf <button class="btn btn-success btn-sm">Save this list to history</button>
-        </form>
+    @if($reportApproved)
+        <div class="d-flex gap-2 report-actions">
+            <button class="btn btn-outline-primary btn-sm" type="button" onclick="window.print()">Print report</button>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ route('check.export', $token) }}">Download full report</a>
+            <a class="btn btn-outline-danger btn-sm" href="{{ route('check.export', [$token, 'only' => 'new']) }}">Download NEW items</a>
+        </div>
+    @endif
+</div>
+
+@if($data['history_file'])
+    <div class="alert alert-info py-2">Comparing with {{ $data['history_file'] }} (this file is not saved to purchase history).</div>
+@endif
+
+@if($reportApproved)
+    <div class="alert alert-success report-actions">Report generation approved. Use Print report or download the Excel report.</div>
+@else
+    <div class="card mb-3 report-actions">
+        <div class="card-body">
+            <h6>Results ready</h6>
+            <p class="mb-2">Review the matches below. A printable/downloadable report is created only after you confirm that you have permission.</p>
+            <form method="POST" action="{{ route('check.report.approve', $token) }}" class="d-flex flex-wrap align-items-center gap-3">
+                @csrf
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="permission" value="1" id="report-permission" required>
+                    <label class="form-check-label" for="report-permission">I have permission to generate this report</label>
+                </div>
+                <button class="btn btn-primary btn-sm">Generate report</button>
+            </form>
+        </div>
     </div>
+@endif
+
+<div class="report-actions mb-3">
+    <form method="POST" action="{{ route('check.save', $token) }}" onsubmit="return confirm('Add all rows of this list to purchase history?')">
+        @csrf <button class="btn btn-success btn-sm">Save this list to history</button>
+    </form>
 </div>
 
 <div class="row g-3 mb-3">
@@ -82,13 +111,13 @@
 </tbody>
 </table>
 
-<script>
-document.querySelectorAll('#filters button').forEach(b => b.onclick = () => {
-    document.querySelectorAll('#filters button').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    document.querySelectorAll('tr[data-status]').forEach(tr => {
-        tr.style.display = (b.dataset.f === 'all' || tr.dataset.status === b.dataset.f) ? '' : 'none';
-    });
-});
-</script>
+<style>
+@media print {
+    body { background: #fff !important; }
+    .navbar, .report-actions, .alert { display: none !important; }
+    .container-fluid { padding: 0 !important; }
+    .card { box-shadow: none; }
+    table { font-size: 9pt; }
+}
+</style>
 @endsection

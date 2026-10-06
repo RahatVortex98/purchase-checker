@@ -43,4 +43,32 @@ class ExcelReaderTest extends TestCase
                 && number_format($bucket['total'], 2) === '141,302.00',
         ));
     }
+
+    public function test_future_purchase_month_is_kept_when_importing_history(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-15 12:00:00'));
+        $file = UploadedFile::fake()->createWithContent(
+            'january-2027.csv',
+            "Date,Item,Qty,Rate,Amount,Supplier\nJanuary 2027,Paper,1,10,10,Vendor\n05.01.2027,Ink,2,5,10,Vendor\n",
+        );
+
+        $this->post(route('history.import.run'), [
+            'file' => $file,
+            'mode' => 'append',
+        ])->assertRedirect(route('history.index'));
+
+        $this->assertDatabaseHas('purchase_histories', [
+            'purchase_date' => '2027-01-01',
+            'date_text' => 'January 2027',
+            'item_name' => 'Paper',
+        ]);
+        $this->assertDatabaseHas('purchase_histories', [
+            'purchase_date' => '2027-01-05',
+            'item_name' => 'Ink',
+        ]);
+
+        $this->get(route('history.index'))
+            ->assertSee('January 2027')
+            ->assertDontSee('Date unknown');
+    }
 }

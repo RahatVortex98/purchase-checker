@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class HistoryController extends Controller
 {
@@ -99,7 +100,12 @@ class HistoryController extends Controller
 
         try {
             $sheets = $reader->sheetNames($request->file('file')->getRealPath());
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::error('Could not read uploaded purchase-history worksheets.', [
+                'file' => $request->file('file')->getClientOriginalName(),
+                'exception' => $e,
+            ]);
+
             return response()->json(['message' => 'Could not read worksheets from this file.'], 422);
         }
 

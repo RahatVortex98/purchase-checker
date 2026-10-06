@@ -47,6 +47,7 @@ Route::get('/check', [CheckController::class, 'index'])->name('check.index');
 Route::post('/check', [CheckController::class, 'run'])->name('check.run');
 Route::get('/check/{token}', [CheckController::class, 'show'])->name('check.show');
 Route::post('/check/{token}/save', [CheckController::class, 'save'])->name('check.save');
+Route::post('/check/{token}/report/approve', [CheckController::class, 'approveReport'])->name('check.report.approve');
 Route::get('/check/{token}/export', [CheckController::class, 'export'])->name('check.export');
 
 Route::get('/history/import', [HistoryController::class, 'importForm'])->name('history.import');
@@ -58,16 +59,26 @@ Route::get('/history/month/{year}/{month}', [HistoryController::class, 'month'])
     ->name('history.month');
 Route::resource('history', HistoryController::class)->except(['show']);
 
-Route::get('/diag', fn () => [
-    'php_bin' => PHP_BINARY,
-    'ini_file' => php_ini_loaded_file(),
-    'sapi' => php_sapi_name(),
-    'upload_tmp_dir' => ini_get('upload_tmp_dir'),
-    'sys_temp' => sys_get_temp_dir(),
-    'tmp_exists' => is_dir('C:\\tmp'),
-    'tmp_writable' => is_writable('C:\\tmp'),
-    'upload_max' => ini_get('upload_max_filesize'),
-]);
+Route::get('/diag', function () {
+    $uploadTempDir = ini_get('upload_tmp_dir') ?: sys_get_temp_dir();
+    $tempFile = tempnam($uploadTempDir, 'upload-check-');
+    if ($tempFile !== false) {
+        unlink($tempFile);
+    }
+
+    return [
+        'php_bin' => PHP_BINARY,
+        'ini_file' => php_ini_loaded_file(),
+        'sapi' => php_sapi_name(),
+        'upload_tmp_dir' => ini_get('upload_tmp_dir'),
+        'sys_temp' => sys_get_temp_dir(),
+        'tmp_exists' => is_dir($uploadTempDir),
+        'tmp_writable' => is_writable($uploadTempDir),
+        'upload_temp_file_test' => $tempFile !== false,
+        'upload_max' => ini_get('upload_max_filesize'),
+        'post_max' => ini_get('post_max_size'),
+    ];
+});
 
 Route::get('/login', fn () => view('login'))->name('login');
 Route::post('/login', function (Request $r) {
