@@ -13,8 +13,15 @@ class ExcelReader
         'item' => ['item / description', 'item', 'product name', 'product', 'description', 'item name'],
         'qty' => ['qty', 'quantity'],
         'unit' => ['unit'],
-        'rate' => ['rate (bdt)', 'rate', 'unit price', 'unit price (bdt)', 'unit price / rate (bdt)'],
-        'amount' => ['amount (bdt)', 'amount', 'total amount (bdt)', 'total amount'],
+        'rate' => [
+            'rate (bdt)', 'rate (tk.)', 'rate', 'unit price', 'unit price (bdt)', 'unit price (tk.)',
+            'unit price / rate (bdt)', 'unit rate', 'unit cost', 'price per unit', 'rate per unit',
+        ],
+        'amount' => [
+            'amount (bdt)', 'amount (tk.)', 'amount', 'total (bdt)', 'total (tk.)', 'total',
+            'total amount (bdt)', 'total amount (tk.)', 'total amount', 'total cost', 'total price',
+            'total value', 'line total', 'line amount', 'net amount',
+        ],
         'supplier' => ['supplier', 'supplier / party name', 'party name', 'supplier name'],
         'department' => ['department', 'department / source', 'dept'],
     ];
@@ -116,12 +123,16 @@ class ExcelReader
         foreach (array_slice($grid, 0, 30, true) as $i => $row) {
             $map = [];
             foreach ($row as $c => $cell) {
-                $h = mb_strtolower(preg_replace('/\s+/u', ' ', trim((string) $cell)));
+                $h = preg_replace('/[^\p{L}\p{N}]+/u', '', mb_strtolower(trim((string) $cell)));
                 if ($h === '') {
                     continue;
                 }
                 foreach (self::ALIASES as $field => $names) {
-                    if (! isset($map[$field]) && in_array($h, $names, true)) {
+                    $normalizedNames = array_map(
+                        fn (string $name) => preg_replace('/[^\p{L}\p{N}]+/u', '', mb_strtolower($name)),
+                        $names,
+                    );
+                    if (! isset($map[$field]) && in_array($h, $normalizedNames, true)) {
                         $map[$field] = $c;
                         break;
                     }
@@ -143,9 +154,15 @@ class ExcelReader
         if (is_numeric($v)) {
             return (float) $v;
         }
-        $v = str_replace(',', '', (string) $v);
+        $v = trim(str_replace(["\u{00A0}", "\u{202F}"], '', (string) $v));
+        $isNegative = str_starts_with($v, '(') && str_ends_with($v, ')');
+        if ($isNegative) {
+            $v = substr($v, 1, -1);
+        }
+        $v = preg_replace('/(?:\bBDT\b|\bTk\.?|৳)/iu', '', $v);
+        $v = str_replace([',', ' '], '', $v);
 
-        return is_numeric($v) ? (float) $v : null;
+        return is_numeric($v) ? (float) ($isNegative ? '-'.$v : $v) : null;
     }
 
     /** Handles "22.02.2026", "08-09-2026", month-only dates, and real Excel dates. */

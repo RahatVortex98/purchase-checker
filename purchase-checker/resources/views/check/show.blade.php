@@ -37,7 +37,7 @@
 @endif
 
 <div class="report-actions mb-3">
-    <form method="POST" action="{{ route('check.save', $token) }}" onsubmit="return confirm('Add all rows of this list to purchase history?')">
+    <form method="POST" action="{{ route('check.save', $token) }}" onsubmit="return confirm('Add all items of this list to purchase history?')">
         @csrf <button class="btn btn-success btn-sm">Save this list to history</button>
     </form>
 </div>

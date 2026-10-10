@@ -1,10 +1,13 @@
 @extends('layouts.app')
 @section('content')
 <div class="card" style="max-width:720px"><div class="card-body">
-<h5>{{ $row->exists ? 'Edit' : 'Add' }} purchase row</h5>
+<h5>{{ $row->exists ? 'Edit' : 'Add' }} purchase item</h5>
 <form method="POST" action="{{ $row->exists ? route('history.update', $row) : route('history.store') }}">
     @csrf
     @if($row->exists) @method('PUT') @endif
+    @if($returnMonth)
+        <input type="hidden" name="return_month" value="{{ $returnMonth->format('Y-m') }}">
+    @endif
     <div class="row g-3">
         <div class="col-md-4"><label class="form-label">Date</label>
             <input type="date" name="purchase_date" class="form-control" value="{{ old('purchase_date', $row->purchase_date?->format('Y-m-d')) }}"></div>
@@ -24,7 +27,7 @@
             <input name="department" class="form-control" value="{{ old('department', $row->department) }}"></div>
     </div>
     <button class="btn btn-primary mt-3">Save</button>
-    <a href="{{ route('history.index') }}" class="btn btn-link mt-3">Cancel</a>
+    <a href="{{ $returnMonth ? route('history.month', ['year' => $returnMonth->year, 'month' => $returnMonth->format('m')]) : route('history.index') }}" class="btn btn-link mt-3">Cancel</a>
 </form>
 </div></div>
 @endsection

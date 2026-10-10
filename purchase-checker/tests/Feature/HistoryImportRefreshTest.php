@@ -11,6 +11,13 @@ class HistoryImportRefreshTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withSession(['logged_in' => true, 'user_role' => 'super_admin']);
+    }
+
     public function test_reimporting_a_file_refreshes_included_dates_and_keeps_other_dates(): void
     {
         $this->travelTo('2026-10-10 12:00:00');
@@ -65,6 +72,41 @@ class HistoryImportRefreshTest extends TestCase
 
         $this->get(route('history.index'))
             ->assertSeeInOrder(['January 2026', 'February 2026']);
+    }
+
+    public function test_history_rows_are_grouped_by_date_and_supplier(): void
+    {
+        PurchaseHistory::create([
+            'purchase_date' => '2026-01-04',
+            'item_name' => 'Paper',
+            'qty' => 2,
+            'rate' => 10,
+            'amount' => 20,
+            'supplier' => 'Vendor A',
+        ]);
+        PurchaseHistory::create([
+            'purchase_date' => '2026-01-04',
+            'item_name' => 'Ink',
+            'qty' => 1,
+            'rate' => 5,
+            'amount' => 5,
+            'supplier' => 'Vendor A',
+        ]);
+        PurchaseHistory::create([
+            'purchase_date' => '2026-01-05',
+            'item_name' => 'Marker',
+            'qty' => 1,
+            'rate' => 7,
+            'amount' => 7,
+            'supplier' => 'Vendor B',
+        ]);
+
+        $this->get(route('history.index'))
+            ->assertOk()
+            ->assertSee('04.01.2026')
+            ->assertSee('Vendor A')
+            ->assertSee('2 items')
+            ->assertSee('Marker');
     }
 
     public function test_repeat_purchases_from_different_imports_are_kept_and_shown_in_checks(): void

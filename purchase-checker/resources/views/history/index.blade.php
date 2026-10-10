@@ -13,8 +13,8 @@
         <button class="btn btn-sm btn-primary">Search</button>
     </form>
     <div>
-        <span class="me-3 text-muted">{{ $total }} rows</span>
-        <a href="{{ route('history.create') }}" class="btn btn-sm btn-success">+ Add row</a>
+        <span class="me-3 text-muted">{{ $total }} items</span>
+        <a href="{{ route('history.create') }}" class="btn btn-sm btn-success">+ Add item</a>
         <a href="{{ route('history.import') }}" class="btn btn-sm btn-outline-primary">Import Excel</a>
     </div>
 </div>
@@ -23,28 +23,38 @@
 <thead class="table-light"><tr><th>Date</th><th>Item</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th><th>Supplier</th><th>Dept</th><th></th></tr></thead>
 <tbody>
 @php $currentMonth = null; @endphp
-@foreach($rows as $r)
-@php $month = $r->purchase_date?->format('Y-m') ?? 'unknown'; @endphp
-@if($month !== $currentMonth)
-<tr class="table-secondary"><th colspan="9">{{ $r->purchase_date?->format('F Y') ?? 'Date unknown' }}</th></tr>
-@php $currentMonth = $month; @endphp
-@endif
-<tr>
-    <td>{{ $r->purchase_date?->format('d.m.Y') ?? $r->date_text }}</td>
-    <td>{{ $r->item_name }}</td>
-    <td>{{ $r->qty !== null ? $r->qty + 0 : '' }}</td>
-    <td>{{ $r->unit }}</td>
-    <td>{{ $n($r->rate) }}</td>
-    <td>{{ $n($r->amount) }}</td>
-    <td>{{ $r->supplier }}</td>
-    <td>{{ $r->department }}</td>
-    <td class="text-nowrap">
-        <a href="{{ route('history.edit', $r) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
-        <form method="POST" action="{{ route('history.destroy', $r) }}" class="d-inline" onsubmit="return confirm('Delete this row?')">
-            @csrf @method('DELETE') <button class="btn btn-sm btn-outline-danger">Del</button>
-        </form>
-    </td>
-</tr>
+@foreach($groupedRows as $group)
+    @php $first = $group->first(); $monthHeader = $first->purchase_date?->format('F Y') ?? $first->date_text; @endphp
+    @if($monthHeader !== null && $monthHeader !== '' && $monthHeader !== $currentMonth)
+        <tr class="table-secondary"><th colspan="9">{{ $monthHeader }}</th></tr>
+        @php $currentMonth = $monthHeader; @endphp
+    @endif
+    <tr class="table-light">
+        <td colspan="9">
+            <div class="d-flex justify-content-between align-items-center gap-3">
+                <div><strong>{{ $first->purchase_date?->format('d.m.Y') ?? $first->date_text }}</strong> · {{ $first->supplier ?: 'Unknown supplier' }}</div>
+                <div class="small text-muted">{{ $group->count() }} items · {{ number_format($group->sum('amount'), 2) }}</div>
+            </div>
+        </td>
+    </tr>
+    @foreach($group as $r)
+        <tr>
+            <td>{{ $r->purchase_date?->format('d.m.Y') ?? $r->date_text }}</td>
+            <td>{{ $r->item_name }}</td>
+            <td>{{ $r->qty !== null ? $r->qty + 0 : '' }}</td>
+            <td>{{ $r->unit }}</td>
+            <td>{{ $n($r->rate) }}</td>
+            <td>{{ $n($r->amount) }}</td>
+            <td>{{ $r->supplier }}</td>
+            <td>{{ $r->department }}</td>
+            <td class="text-nowrap">
+                <a href="{{ route('history.edit', $r) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                <form method="POST" action="{{ route('history.destroy', $r) }}" class="d-inline" onsubmit="return confirm('Delete this item?')">
+                    @csrf @method('DELETE') <button class="btn btn-sm btn-outline-danger">Del</button>
+                </form>
+            </td>
+        </tr>
+    @endforeach
 @endforeach
 </tbody>
 </table>

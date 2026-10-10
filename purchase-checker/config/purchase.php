@@ -1,14 +1,19 @@
 <?php
 
 return [
+    'password' => env('APP_PASSWORD'),
+    'managing_director' => [
+        'email' => env('MANAGING_DIRECTOR_EMAIL', 'nurulhasan@example.com'),
+        'password_hash' => env('MANAGING_DIRECTOR_PASSWORD_HASH'),
+    ],
     'similar_threshold' => 0.65,   // lower = more "similar" matches
 
     // phrase fixes (applied on lowercase text)
     'phrases' => [
-        'h2so4'     => 'sulfuric acid',
+        'h2so4' => 'sulfuric acid',
         'sulphuric' => 'sulfuric',
-        'h2o2'      => 'hydrogen peroxide',
-        'w. rod'    => 'welding rod',
+        'h2o2' => 'hydrogen peroxide',
+        'w. rod' => 'welding rod',
     ],
 
     // word fixes
